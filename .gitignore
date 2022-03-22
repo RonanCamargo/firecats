@@ -1,0 +1,18 @@
+target/
+boot/
+lib_managed/
+src_managed/
+project/plugins/project/
+
+# Ignore IDEA files
+.idea/
+.bsp/
+
+# Ignore metals and VS Code
+.metals/
+.vscode/
+.bloop/
+metals*
+
+# Ignore OS files
+.DS_Store
