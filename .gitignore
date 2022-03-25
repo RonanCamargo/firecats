@@ -16,3 +16,5 @@ metals*
 
 # Ignore OS files
 .DS_Store
+
+/src/main/resources/firebase-key.json
