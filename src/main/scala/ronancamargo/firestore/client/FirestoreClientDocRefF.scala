@@ -8,7 +8,8 @@ import ronancamargo.firestore.codec
 import ronancamargo.firestore.codec.{FirestoreDecoder, FirestoreEncoder}
 import ronancamargo.firestore.errors.FirestoreError
 
-case class FirestoreClientDocRefF[F[_]](private val firestore: Firestore) {
+trait FirestoreClientDocRefF[F[_]] {
+  protected val database: Firestore
 
   def set[A](doc: A, docRef: DocumentReference)(implicit
       F: Sync[F],
@@ -64,7 +65,7 @@ case class FirestoreClientDocRefF[F[_]](private val firestore: Firestore) {
       encoder: FirestoreEncoder[B]
   ): F[Either[FirestoreError, B]] = {
     F.blocking(
-      firestore
+      database
         .runTransaction { tx =>
           val data: DocumentSnapshot = tx.get(docRef).get()
           val doc: A                 = decoder.decode(codec.FirestoreDocument(data.getData))

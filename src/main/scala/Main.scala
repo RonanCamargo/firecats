@@ -1,15 +1,16 @@
 import cats.effect.IO
-import cats.effect.unsafe.implicits.global
 import com.google.auth.oauth2.GoogleCredentials
+import com.google.cloud.firestore.Firestore
 import com.google.firebase.cloud.FirestoreClient
 import com.google.firebase.{FirebaseApp, FirebaseOptions}
 import ronancamargo.firestore.client.{FirestoreClientDocRef, FirestoreClientDocRefF}
 import ronancamargo.firestore.codec.{FirestoreDecoder, FirestoreDocument, FirestoreEncoder}
 import ronancamargo.firestore.errors.FirestoreError
+import ronancamargo.firestore.syntax.runners._
 
 import java.io.FileInputStream
 import scala.jdk.CollectionConverters._
-import ronancamargo.firestore.syntax.runners._
+import scala.util.chaining.scalaUtilChainingOps
 
 object Main extends App {
 
@@ -36,13 +37,20 @@ object Main extends App {
 
   val docRef                                  = firestore.collection("person").document("1")
   val docRef2                                 = firestore.collection("person").document("2")
-  val set: IO[Either[FirestoreError, Person]] = client.set(Person("JIJI", 1), docRef2)
+  val set: IO[Either[FirestoreError, Person]] = client.set[IO, Person](Person("JIJI", 1), docRef2)
 
   set.runSync
   client.findAndUpdate[IO, Person, Person](docRef)(_ => Person("Marzovekio", 666)).runSync
 //  println(List("state" -> 1, "age" -> 20).diff(List("state" -> 1, "age" -> 2)))
 
-  val fClient = FirestoreClientDocRefF[IO](firestore)
+  val fClient = new FirestoreClientDocRefF[IO] {
+    override protected val database: Firestore = firestore
+  }
 
-  val setIO = fClient.set(Person("GG", 66), docRef2).runSync
+  val r = for {
+    gg    <- fClient.set(Person("GG", 666), docRef2)
+    found <- fClient.get(docRef2)
+  } yield found
+
+  r.runSync.pipe(println)
 }
