@@ -8,9 +8,9 @@ import ronancamargo.firestore.codec
 import ronancamargo.firestore.codec.{FirestoreDecoder, FirestoreEncoder}
 import ronancamargo.firestore.errors.FirestoreError
 
-case class FirestoreClientDocRef(private val firestore: Firestore) {
+case class FirestoreClientDocRefF[F[_]](private val firestore: Firestore) {
 
-  def set[F[_], A](doc: A, docRef: DocumentReference)(implicit
+  def set[A](doc: A, docRef: DocumentReference)(implicit
       F: Sync[F],
       encoder: FirestoreEncoder[A]
   ): F[Either[FirestoreError, A]] = {
@@ -20,7 +20,7 @@ case class FirestoreClientDocRef(private val firestore: Firestore) {
       .leftMapIn(FirestoreError.unexpectedFirestoreError)
   }
 
-  def get[F[_], A](docRef: DocumentReference)(implicit
+  def get[A](docRef: DocumentReference)(implicit
       F: Sync[F],
       decoder: FirestoreDecoder[A]
   ): F[Either[FirestoreError, A]] =
@@ -29,13 +29,13 @@ case class FirestoreClientDocRef(private val firestore: Firestore) {
       .|>(F.attempt)
       .leftMapIn(FirestoreError.unexpectedFirestoreError)
 
-  def del[F[_]](docRef: DocumentReference)(implicit F: Sync[F]): F[Either[FirestoreError, Unit]] =
+  def del(docRef: DocumentReference)(implicit F: Sync[F]): F[Either[FirestoreError, Unit]] =
     F.blocking(docRef.delete().get())
       .|>(F.void)
       .|>(F.attempt)
       .leftMapIn(FirestoreError.unexpectedFirestoreError)
 
-  def create[F[_], A](doc: A, docRef: DocumentReference)(implicit
+  def create[A](doc: A, docRef: DocumentReference)(implicit
       F: Sync[F],
       encoder: FirestoreEncoder[A]
   ): F[Either[FirestoreError, A]] = {
@@ -45,20 +45,20 @@ case class FirestoreClientDocRef(private val firestore: Firestore) {
       .leftMapIn(FirestoreError.unexpectedFirestoreError)
   }
 
-  def create2[F[_], A](doc: A, docRef: DocumentReference)(implicit
+  def create2[A](doc: A, docRef: DocumentReference)(implicit
       F: Sync[F],
       encoder: FirestoreEncoder[A]
   ): F[Either[FirestoreError, A]] = {
-    attemptBlock[F, A](F.delay(docRef.create(encoder.encode(doc).document).get()).|>(F.as(_, doc)))
+    attemptBlock[A](F.delay(docRef.create(encoder.encode(doc).document).get()).|>(F.as(_, doc)))
   }
 
-  def update[F[_], A](docRef: DocumentReference)(f: A => A)(implicit
+  def update[A](docRef: DocumentReference)(f: A => A)(implicit
       F: Sync[F],
       decoder: FirestoreDecoder[A],
       encoder: FirestoreEncoder[A]
-  ): F[Either[FirestoreError, A]] = findAndUpdate[F, A, A](docRef)(f)
+  ): F[Either[FirestoreError, A]] = findAndUpdate[A, A](docRef)(f)
 
-  def findAndUpdate[F[_], A, B](docRef: DocumentReference)(f: A => B)(implicit
+  def findAndUpdate[A, B](docRef: DocumentReference)(f: A => B)(implicit
       F: Sync[F],
       decoder: FirestoreDecoder[A],
       encoder: FirestoreEncoder[B]
@@ -77,7 +77,7 @@ case class FirestoreClientDocRef(private val firestore: Firestore) {
       .leftMapIn(FirestoreError.unexpectedFirestoreError)
   }
 
-  def attemptBlock[F[_], A](fa: F[A])(implicit F: Sync[F]): F[Either[FirestoreError, A]] =
+  def attemptBlock[A](fa: F[A])(implicit F: Sync[F]): F[Either[FirestoreError, A]] =
     (F.blocking(fa) |> F.flatten |> F.attempt)
       .leftMapIn(FirestoreError.unexpectedFirestoreError)
 }
