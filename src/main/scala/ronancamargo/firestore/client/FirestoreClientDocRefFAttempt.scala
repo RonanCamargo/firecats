@@ -12,7 +12,9 @@ trait FirestoreClientDocRefFAttempt[F[_]] {
   protected val database: Firestore
 
   def getMap(docRef: DocumentReference)(implicit F: Sync[F]): F[Either[FirestoreError, JavaMap[String, AnyRef]]] =
-    F.blocking(docRef.get().get().getData).|>(F.attempt).leftMapIn(FirestoreError.unexpectedFirestoreError)
+    F.blocking(docRef.get().get().getData)
+      .|>(F.attempt)
+      .leftMapIn(FirestoreError.unexpectedFirestoreError)
 
   def set[A](doc: A, docRef: DocumentReference)(implicit
       F: Sync[F],
