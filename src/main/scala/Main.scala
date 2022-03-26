@@ -1,16 +1,17 @@
 import cats.effect.IO
 import com.google.auth.oauth2.GoogleCredentials
-import com.google.cloud.firestore.Firestore
+import com.google.cloud.firestore.{DocumentReference, Firestore, GeoPoint}
 import com.google.firebase.cloud.FirestoreClient
 import com.google.firebase.{FirebaseApp, FirebaseOptions}
-import ronancamargo.firestore.client.{FirestoreClientDocRef, FirestoreClientDocRefF}
+import ronancamargo.firestore.client.{FirestoreClientDocRef, FirestoreClientDocRefF, FirestoreClientDocRefFAttempt}
 import ronancamargo.firestore.codec.{FirestoreDecoder, FirestoreDocument, FirestoreEncoder}
 import ronancamargo.firestore.errors.FirestoreError
 import ronancamargo.firestore.syntax.runners._
+import shapeless.Poly1
 
 import java.io.FileInputStream
-import scala.jdk.CollectionConverters._
-import scala.util.chaining.scalaUtilChainingOps
+import scala.collection.mutable
+import scala.util.chaining._
 
 object Main extends App {
 
@@ -24,7 +25,7 @@ object Main extends App {
   implicit val personEncoder: FirestoreEncoder[Person] = new FirestoreEncoder[Person] {
     override def encode(entity: Person): FirestoreDocument =
       FirestoreDocument(
-        Map("name" -> entity.name.asInstanceOf[AnyRef], "age" -> entity.age.asInstanceOf[AnyRef]).asJava
+        Map("name" -> entity.name.asInstanceOf[AnyRef], "age" -> entity.age.asInstanceOf[AnyRef])
       )
   }
 
@@ -39,9 +40,8 @@ object Main extends App {
   val docRef2                                 = firestore.collection("person").document("2")
   val set: IO[Either[FirestoreError, Person]] = client.set[IO, Person](Person("JIJI", 1), docRef2)
 
-  set.runSync
-  client.findAndUpdate[IO, Person, Person](docRef)(_ => Person("Marzovekio", 666)).runSync
-//  println(List("state" -> 1, "age" -> 20).diff(List("state" -> 1, "age" -> 2)))
+//  set.runSync
+//  client.findAndUpdate[IO, Person, Person](docRef)(_ => Person("Marzovekio", 666)).runSync
 
   val fClient = new FirestoreClientDocRefF[IO] {
     override protected val database: Firestore = firestore
@@ -52,5 +52,29 @@ object Main extends App {
     found <- fClient.get(docRef2)
   } yield found
 
-  r.runSync.pipe(println)
+//  r.runSync.pipe(println)
+
+  val faClient = new FirestoreClientDocRefFAttempt[IO] {
+    override protected val database: Firestore = firestore
+  }
+  import scala.jdk.CollectionConverters._
+
+  val mapRef = firestore.collection("person").document("3")
+  faClient
+    .getMap(mapRef)
+    .runSync
+    .map(_.asScala)
+    .map(dataMap =>
+      dataMap.map {
+        case (key, null)                                                           => println(s"Key: $key, Value: null")
+        case (key, value) if value.isInstanceOf[DocumentReference]                 =>
+          println(s"Document: ${faClient.getMap(value.asInstanceOf[DocumentReference]).runSync}")
+        case (key, value) if value.isInstanceOf[java.util.HashMap[String, AnyRef]] =>
+          println(s"Key: $key, Value: $value, Value type: ${value.getClass} ")
+          value.asInstanceOf[java.util.HashMap[String, AnyRef]].asScala.foreach { case (k, v) =>
+            println(s"\tKey: $k, Value: $v, Value type: ${v.getClass}")
+          }
+        case (key, value) => println(s"Key: $key, Value: $value, Value type: ${value.getClass}")
+      }
+    )
 }

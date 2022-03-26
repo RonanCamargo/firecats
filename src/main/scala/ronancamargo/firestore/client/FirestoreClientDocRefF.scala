@@ -24,9 +24,9 @@ trait FirestoreClientDocRefF[F[_]] {
   def get[A](docRef: DocumentReference)(implicit
       F: Sync[F],
       decoder: FirestoreDecoder[A]
-  ): F[Either[FirestoreError, A]] =
+  ): F[Either[FirestoreError, Option[A]]] =
     F.blocking(docRef.get().get())
-      .|>(F.map(_)(ds => decoder.decode(codec.FirestoreDocument(ds.getData))))
+      .|>(F.map(_)(maybeDS => Option(maybeDS).map(ds => decoder.decode(codec.FirestoreDocument(ds.getData)))))
       .|>(F.attempt)
       .leftMapIn(FirestoreError.unexpectedFirestoreError)
 
