@@ -3,7 +3,6 @@ package ronancamargo.firestore.data
 import com.google.cloud.firestore.{DocumentReference, Firestore}
 
 import scala.annotation.tailrec
-import scala.util.chaining.scalaUtilChainingOps
 
 case class FirestoreReference(
     private val collectionName: String,
