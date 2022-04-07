@@ -21,20 +21,22 @@ object Person {
 
 }
 
-case class PersonDocument(id: String, name: String, age: Int)
+case class PersonDocument(id: String, teamId: String, name: String, age: Int)
 
 object PersonDocument {
   implicit val personEncoder: FirestoreEncoder[PersonDocument] = FirestoreEncoder.instance { entity =>
     Map(
-      "name" -> entity.name.asInstanceOf[AnyRef],
-      "age"  -> entity.age.asInstanceOf[AnyRef],
-      "id"   -> entity.id.asInstanceOf[AnyRef]
+      "name"   -> entity.name.asInstanceOf[AnyRef],
+      "age"    -> entity.age.asInstanceOf[AnyRef],
+      "teamId" -> entity.teamId.asInstanceOf[AnyRef],
+      "id"     -> entity.id.asInstanceOf[AnyRef]
     )
   }
 
   implicit val personDecoder: FirestoreDecoder[PersonDocument] = FirestoreDecoder.instance { doc =>
     PersonDocument(
       doc("id").asInstanceOf[String],
+      doc("teamId").asInstanceOf[String],
       doc("name").asInstanceOf[String],
       doc("age").asInstanceOf[Long].toInt
     )

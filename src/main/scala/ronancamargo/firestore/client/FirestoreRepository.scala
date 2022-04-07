@@ -9,7 +9,7 @@ import mouse.all._
 import ronancamargo.firestore.codec.{FirestoreDecoder, FirestoreDocument, FirestoreEncoder}
 import ronancamargo.firestore.data.{CollectionHierarchy, DocumentKey}
 import ronancamargo.firestore.errors.{DocumentNotFoundError, FirestoreError, InvalidReference}
-
+import Ops._
 import scala.concurrent.ExecutionException
 
 abstract class FirestoreRepository[F[_] : Sync, A](
@@ -17,13 +17,15 @@ abstract class FirestoreRepository[F[_] : Sync, A](
     collectionHierarchy: CollectionHierarchy
 ) {
 
+  def keyFromDoc: A => DocumentKey
+
   private val syncF: Sync[F] = implicitly[Sync[F]]
 
-  def set(doc: A, key: DocumentKey)(implicit
+  def set(doc: A)(implicit
       encoder: FirestoreEncoder[A]
   ): F[Either[FirestoreError, A]] =
     syncF
-      .fromEither(documentReference(collectionHierarchy, key, database))
+      .fromEither(documentReference(collectionHierarchy, keyFromDoc(doc), database))
       .tupleRight(encoder.encode(doc).document)
       .flatMap { case (ref, doc) => syncF.blocking(ref.set(doc).await) }
       .as(doc)
@@ -58,20 +60,20 @@ abstract class FirestoreRepository[F[_] : Sync, A](
       .attempt
       .leftMapIn(errorHandler)
 
-  def create(doc: A, key: DocumentKey)(implicit encoder: FirestoreEncoder[A]): F[Either[FirestoreError, A]] =
+  def create(doc: A)(implicit encoder: FirestoreEncoder[A]): F[Either[FirestoreError, A]] =
     syncF
-      .fromEither(documentReference(collectionHierarchy, key, database))
+      .fromEither(documentReference(collectionHierarchy, keyFromDoc(doc), database))
       .tupleRight(encoder.encode(doc).document)
       .flatMap { case (ref, doc) => syncF.blocking(ref.create(doc).await) }
       .as(doc)
       .attempt
       .leftMapIn(errorHandler)
 
-  def unsafeUpdate(doc: A, key: DocumentKey)(implicit
+  def unsafeUpdate(doc: A)(implicit
       encoder: FirestoreEncoder[A]
   ): F[Either[FirestoreError, A]] = {
     syncF
-      .fromEither(documentReference(collectionHierarchy, key, database))
+      .fromEither(documentReference(collectionHierarchy, keyFromDoc(doc), database))
       .tupleRight(encoder.encode(doc).document)
       .flatMap { case (ref, doc) => syncF.blocking(ref.update(doc).await) }
       .as(doc)
@@ -129,9 +131,13 @@ abstract class FirestoreRepository[F[_] : Sync, A](
           .asRight
     }
 
-  implicit class ApiFutureOps[OP](future: ApiFuture[OP]) {
+}
+
+object Ops {
+  implicit final class ApiFutureOps[OP](private val future: ApiFuture[OP]) extends AnyVal {
     def await: OP = future.get()
   }
+
 }
 
 object ExecutionException {

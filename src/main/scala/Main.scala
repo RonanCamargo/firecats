@@ -16,8 +16,8 @@ object Main extends App {
 
   val serviceAccount = new FileInputStream("src/main/resources/firebase-key.json")
   val options        = new FirebaseOptions.Builder().setCredentials(GoogleCredentials.fromStream(serviceAccount)).build
-  val app: FirebaseApp   = FirebaseApp.initializeApp(options)
-  implicit val firestore = FirestoreClient.getFirestore(app)
+  val app: FirebaseApp              = FirebaseApp.initializeApp(options)
+  implicit val firestore: Firestore = FirestoreClient.getFirestore(app)
   implicit class Printer[A](printable: IO[Either[FirestoreError, A]]) {
     def runAndPrint: Either[FirestoreError, A] = printable.runSync.tap(println)
   }
@@ -49,26 +49,23 @@ object Main extends App {
 //    )
 
   val darumaDocRef: DocumentReference = firestore.collection("daruma").document("1")
-  val ronan                           = PersonDocument("123", "Ronan", 28)
+  val ronan                           = PersonDocument("123", "1", "Ronan", 28)
   val myTeamKey                       = DocumentKey("1", "123")
 
   val teamRepo = TeamFirestoreRepo(firestore)
   teamRepo.get(DocumentKey("1", "1")).runAndPrint
-  teamRepo.set(ronan, myTeamKey).runAndPrint
+  teamRepo.set(ronan).runAndPrint
   teamRepo.getOption(myTeamKey).runAndPrint
-  teamRepo.create(ronan, myTeamKey).runAndPrint
+  teamRepo.create(ronan).runAndPrint
 
   val capitalized = ronan.copy(name = ronan.name.toUpperCase)
-  teamRepo.unsafeUpdate(capitalized, myTeamKey).runAndPrint
-  teamRepo.update(myTeamKey)(_.copy(age = 20)).runAndPrint
-  teamRepo.updateProjection(myTeamKey)(doc => Person(doc.name + "123", doc.age + 100)).runAndPrint
 
+  teamRepo.unsafeUpdate(capitalized).runAndPrint
+  teamRepo.update(myTeamKey)(_.copy(age = 20)).runAndPrint
+  teamRepo.updateProjection(myTeamKey)(_ => Person("", 100)).runAndPrint
 }
 
 case class TeamFirestoreRepo(fs: Firestore)
-    extends FirestoreIORepository[PersonDocument](fs, CollectionHierarchy("team", "nomades"))
-
-case class DarumaTeamBackAirFirestoreRepo(fs: Firestore)
-    extends FirestoreIORepository[Person](fs, CollectionHierarchy("team", "backAir"))
-
-case class DarumaTeamFirestoreRepo(fs: Firestore) extends FirestoreIORepository[Person](fs, CollectionHierarchy("team"))
+    extends FirestoreIORepository[PersonDocument](fs, CollectionHierarchy("team", "nomades")) {
+  override def keyFromDoc: PersonDocument => DocumentKey = person => DocumentKey(person.id)
+}
