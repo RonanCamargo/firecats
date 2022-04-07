@@ -1,110 +1,139 @@
 package ronancamargo.firestore.client
 
 import cats.effect.Sync
-import com.google.cloud.firestore.{DocumentReference, DocumentSnapshot, Firestore}
-import mouse.any._
-import mouse.feither._
-import ronancamargo.firestore.codec
-import ronancamargo.firestore.codec.{FirestoreDecoder, FirestoreEncoder}
-import ronancamargo.firestore.data.{CollectionNames, DarumaDocument, FirestoreReference}
-import ronancamargo.firestore.errors.FirestoreError
+import cats.implicits._
+import com.google.api.core.ApiFuture
+import com.google.api.gax.rpc.AlreadyExistsException
+import com.google.cloud.firestore.{DocumentReference, Firestore}
+import mouse.all._
+import ronancamargo.firestore.codec.{FirestoreDecoder, FirestoreDocument, FirestoreEncoder}
+import ronancamargo.firestore.data.{CollectionHierarchy, DocumentKey}
+import ronancamargo.firestore.errors.{DocumentNotFoundError, FirestoreError, InvalidReference}
 
-abstract class FirestoreRepository[F[_], A <: DarumaDocument](database: Firestore, collectionNames: CollectionNames) {
+import scala.concurrent.ExecutionException
 
-  private def createReference(collectionDocuments: List[(String, String)], fs: Firestore): DocumentReference = {
-    val docRef: DocumentReference =
-      collectionDocuments.tail.foldLeft(
-        fs.collection(collectionDocuments.head._1).document(collectionDocuments.head._2)
-      ) { case (accumDocRef, (k, v)) => accumDocRef.collection(k).document(v) }
-    docRef
-  }
+abstract class FirestoreRepository[F[_] : Sync, A](
+    database: Firestore,
+    collectionHierarchy: CollectionHierarchy
+) {
 
-  def set(doc: A, documentIds: String*)(implicit
-      F: Sync[F],
-      encoder: FirestoreEncoder[A]
-  ): F[Either[FirestoreError, A]] = {
-    println(s"Collections size: ${collectionNames.collections}, Docs: $documentIds")
-    assert(collectionNames.collections.size == documentIds.size)
-    val references: List[(String, String)] = collectionNames.collections zip documentIds
-    val docRef                             = createReference(references, database)
+  private val syncF: Sync[F] = implicitly[Sync[F]]
 
-    F.blocking(docRef.set(encoder.encode(doc).document).get())
-      .|>(F.as(_, doc))
-      .|>(F.attempt)
-      .leftMapIn(FirestoreError.unexpectedFirestoreError)
-  }
-
-  def set(doc: A, docRef: FirestoreReference)(implicit
-      F: Sync[F],
-      encoder: FirestoreEncoder[A]
-  ): F[Either[FirestoreError, A]] = {
-    F.delay(docRef.docReference(database))
-      .|>(F.map(_)(_.set(encoder.encode(doc).document).get()))
-      .|>(F.as(_, doc))
-      .|>(attemptBlocking)
-  }
-
-  def get(docRef: DocumentReference)(implicit
-      F: Sync[F],
-      decoder: FirestoreDecoder[A]
-  ): F[Either[FirestoreError, A]] =
-    F.delay(docRef.get().get())
-      .|>(F.map(_)(ds => decoder.decode(codec.FirestoreDocument(ds.getData))))
-      .|>(attemptBlocking)
-
-  def get(documentIds: String*)(implicit
-      F: Sync[F],
-      decoder: FirestoreDecoder[A]
-  ): F[Either[FirestoreError, A]] = {
-    assert(collectionNames.collections.size == documentIds.size)
-    val references: List[(String, String)] = (collectionNames.collections zip documentIds)
-    val docRef                             = createReference(references, database)
-
-    F.delay(docRef.get().get())
-      .|>(F.map(_)(ds => decoder.decode(codec.FirestoreDocument(ds.getData))))
-      .|>(attemptBlocking)
-  }
-
-  def del(docRef: DocumentReference)(implicit F: Sync[F]): F[Either[FirestoreError, Unit]] =
-    F.blocking(docRef.delete().get())
-      .|>(F.void)
-      .|>(F.attempt)
-      .leftMapIn(FirestoreError.unexpectedFirestoreError)
-
-  def create(doc: A, docRef: DocumentReference)(implicit
-      F: Sync[F],
+  def set(doc: A, key: DocumentKey)(implicit
       encoder: FirestoreEncoder[A]
   ): F[Either[FirestoreError, A]] =
-    F.blocking(docRef.create(encoder.encode(doc).document).get())
-      .|>(F.as(_, doc))
-      .|>(F.attempt)
-      .leftMapIn(FirestoreError.unexpectedFirestoreError)
+    syncF
+      .fromEither(documentReference(collectionHierarchy, key, database))
+      .tupleRight(encoder.encode(doc).document)
+      .flatMap { case (ref, doc) => syncF.blocking(ref.set(doc).await) }
+      .as(doc)
+      .attempt
+      .leftMapIn(errorHandler)
 
-  def update(docRef: DocumentReference)(f: A => A)(implicit
-      F: Sync[F],
-      decoder: FirestoreDecoder[A],
+  def get(key: DocumentKey)(implicit
+      decoder: FirestoreDecoder[A]
+  ): F[Either[FirestoreError, A]] =
+    getOption(key).flatMapIn(
+      _.toRight(
+        DocumentNotFoundError(s"Document with key: $key was not found in collection: $collectionHierarchy")
+      )
+    )
+
+  def getOption(
+      key: DocumentKey
+  )(implicit decoder: FirestoreDecoder[A]): F[Either[FirestoreError, Option[A]]] =
+    syncF
+      .fromEither(documentReference(collectionHierarchy, key, database))
+      .flatMap { ref => syncF.blocking(Option(ref.get().await.getData)) }
+      .mapIn(FirestoreDocument(_))
+      .mapIn(decoder.decode)
+      .attempt
+      .leftMapIn(errorHandler)
+
+  def del(key: DocumentKey)(): F[Either[FirestoreError, Unit]] =
+    syncF
+      .fromEither(documentReference(collectionHierarchy, key, database))
+      .flatMap { ref => syncF.blocking(ref.delete().get()) }
+      .void
+      .attempt
+      .leftMapIn(errorHandler)
+
+  def create(doc: A, key: DocumentKey)(implicit encoder: FirestoreEncoder[A]): F[Either[FirestoreError, A]] =
+    syncF
+      .fromEither(documentReference(collectionHierarchy, key, database))
+      .tupleRight(encoder.encode(doc).document)
+      .flatMap { case (ref, doc) => syncF.blocking(ref.create(doc).await) }
+      .as(doc)
+      .attempt
+      .leftMapIn(errorHandler)
+
+  def unsafeUpdate(doc: A, key: DocumentKey)(implicit
       encoder: FirestoreEncoder[A]
-  ): F[Either[FirestoreError, A]] = findAndUpdate[A](docRef)(f)
+  ): F[Either[FirestoreError, A]] = {
+    syncF
+      .fromEither(documentReference(collectionHierarchy, key, database))
+      .tupleRight(encoder.encode(doc).document)
+      .flatMap { case (ref, doc) => syncF.blocking(ref.update(doc).await) }
+      .as(doc)
+      .attempt
+      .leftMapIn(errorHandler)
+  }
 
-  def findAndUpdate[B](docRef: DocumentReference)(f: A => B)(implicit
-      F: Sync[F],
-      decoder: FirestoreDecoder[A],
-      encoder: FirestoreEncoder[B]
-  ): F[Either[FirestoreError, B]] =
-    F.blocking {
-      database
-        .runTransaction { tx =>
-          val data: DocumentSnapshot = tx.get(docRef).get()
-          val doc: A                 = decoder.decode(codec.FirestoreDocument(data.getData))
-          val updated: B             = f(doc)
-          tx.update(docRef, encoder.encode(updated).document)
-          updated
-        }
-        .get()
-    }.|>(F.attempt)
-      .leftMapIn(FirestoreError.unexpectedFirestoreError)
+  def updateProjection[B](
+      key: DocumentKey
+  )(f: A => B)(implicit decoder: FirestoreDecoder[A], encoder: FirestoreEncoder[B]): F[Either[FirestoreError, B]] =
+    syncF
+      .blocking {
+        database.runTransaction { tx =>
+          val txResult = for {
+            reference <- documentReference(collectionHierarchy, key, database)
+            data      = reference.get().await.getData
+            decoded   = decoder.decode(FirestoreDocument(data))
+            projected = f(decoded)
+            encoded   = encoder.encode(projected)
+            _         = tx.update(reference, encoded.document)
+          } yield projected
+          txResult.leftWiden[FirestoreError]
+        }.await
+      }
+      .attempt
+      .leftMapIn(errorHandler)
+      .map(_.flatten)
 
-  def attemptBlocking(fa: F[A])(implicit F: Sync[F]): F[Either[FirestoreError, A]] =
-    (F.blocking(fa) |> F.flatten |> F.attempt)
-      .leftMapIn(FirestoreError.unexpectedFirestoreError)
+  def update(key: DocumentKey)(
+      f: A => A
+  )(implicit decoder: FirestoreDecoder[A], encoder: FirestoreEncoder[A]): F[Either[FirestoreError, A]] =
+    updateProjection(key)(f)
+
+  def errorHandler: Throwable => FirestoreError = {
+    case ExecutionException(_: AlreadyExistsException) => FirestoreError.documentAlreadyExists
+    case error: FirestoreError                         => error
+    case error                                         => FirestoreError.unexpectedFirestoreError(error)
+  }
+
+  private def documentReference(
+      collectionNames: CollectionHierarchy,
+      key: DocumentKey,
+      firestore: Firestore
+  ): Either[InvalidReference, DocumentReference] =
+    (collectionNames.collections, key.keys) match {
+      case (collections, keys) if collections.size != keys.size =>
+        InvalidReference(s"Keys: $key are invalid. Check keys size.").asLeft
+
+      case (Nil, Nil) => InvalidReference("Collection names and keys are empty.").asLeft
+
+      case (headCollection :: tailCollections, headKey :: tailKeys) =>
+        val seedDocRef = firestore.collection(headCollection).document(headKey)
+        (tailCollections zip tailKeys)
+          .foldLeft(seedDocRef) { case (docRef, (col, key)) => docRef.collection(col).document(key) }
+          .asRight
+    }
+
+  implicit class ApiFutureOps[OP](future: ApiFuture[OP]) {
+    def await: OP = future.get()
+  }
+}
+
+object ExecutionException {
+  def unapply(error: ExecutionException): Option[Throwable] = Option(error.getCause)
 }

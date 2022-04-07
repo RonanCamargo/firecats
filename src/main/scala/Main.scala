@@ -1,14 +1,13 @@
 import cats.effect.IO
-import cats.effect.unsafe.implicits.global
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.cloud.firestore.{DocumentReference, Firestore}
 import com.google.firebase.cloud.FirestoreClient
 import com.google.firebase.{FirebaseApp, FirebaseOptions}
-import ronancamargo.firestore.client.FirestoreClientDocRefFAttemptCollection
-import ronancamargo.firestore.data.FirestoreReference
+import ronancamargo.firestore.client.FirestoreIORepository
+import ronancamargo.firestore.data.{CollectionHierarchy, DocumentKey}
 import ronancamargo.firestore.errors.FirestoreError
 import ronancamargo.firestore.syntax.runners._
-import ronancamargo.firestore.tryout.{Daruma, Person}
+import ronancamargo.firestore.tryout.{Person, PersonDocument}
 
 import java.io.FileInputStream
 import scala.util.chaining._
@@ -19,6 +18,9 @@ object Main extends App {
   val options        = new FirebaseOptions.Builder().setCredentials(GoogleCredentials.fromStream(serviceAccount)).build
   val app: FirebaseApp   = FirebaseApp.initializeApp(options)
   implicit val firestore = FirestoreClient.getFirestore(app)
+  implicit class Printer[A](printable: IO[Either[FirestoreError, A]]) {
+    def runAndPrint: Either[FirestoreError, A] = printable.runSync.tap(println)
+  }
 
 //  val client  = FirestoreClientDocRef(firestore)
 //  val docRef  = firestore.collection("person").document("1")
@@ -45,34 +47,28 @@ object Main extends App {
 //        case (key, value) => println(s"Key: $key, Value: $value, Value type: ${value.getClass}")
 //      }
 //    )
+
   val darumaDocRef: DocumentReference = firestore.collection("daruma").document("1")
+  val ronan                           = PersonDocument("123", "Ronan", 28)
+  val myTeamKey                       = DocumentKey("1", "123")
 
-  val nomadesClient = DarumaTeamNomadesFirestoreRepo(firestore)
+  val teamRepo = TeamFirestoreRepo(firestore)
+  teamRepo.get(DocumentKey("1", "1")).runAndPrint
+  teamRepo.set(ronan, myTeamKey).runAndPrint
+  teamRepo.getOption(myTeamKey).runAndPrint
+  teamRepo.create(ronan, myTeamKey).runAndPrint
 
-  val ronan = Person("Ronan", 28)
-  nomadesClient.set(ronan, "1", "123123").runSync.pipe(println)
-  nomadesClient.get[Person]("1", "123123").runSync.pipe(p => println(s"Found: $p"))
+  val capitalized = ronan.copy(name = ronan.name.toUpperCase)
+  teamRepo.unsafeUpdate(capitalized, myTeamKey).runAndPrint
+  teamRepo.update(myTeamKey)(_.copy(age = 20)).runAndPrint
+  teamRepo.updateProjection(myTeamKey)(doc => Person(doc.name + "123", doc.age + 100)).runAndPrint
 
-  val darumaClient = DarumaFirestoreRepo(firestore)
-  darumaClient.set(doc = Daruma("daruma", "30123123129"), "1").runSync.pipe(println)
-
-  darumaClient.update[Daruma](darumaDocRef) { daruma => daruma.copy(cuit = "0000") }.runSync
-
-//  import monocle.syntax.all._
-//  darumaClient.update[Daruma](darumaDocRef)(_.focus(_.name).replace("Daruminho")).runSync
 }
 
-case class DarumaTeamNomadesFirestoreRepo(fs: Firestore) extends FirestoreClientDocRefFAttemptCollection[IO] {
-  override protected val database: Firestore = fs
-  override val collections                   = List("daruma", "nomades")
-}
+case class TeamFirestoreRepo(fs: Firestore)
+    extends FirestoreIORepository[PersonDocument](fs, CollectionHierarchy("team", "nomades"))
 
-case class DarumaTeamBackAirFirestoreRepo(fs: Firestore) extends FirestoreClientDocRefFAttemptCollection[IO] {
-  override protected val database: Firestore = fs
-  override val collections                   = List("daruma", "backAir")
-}
+case class DarumaTeamBackAirFirestoreRepo(fs: Firestore)
+    extends FirestoreIORepository[Person](fs, CollectionHierarchy("team", "backAir"))
 
-case class DarumaFirestoreRepo(fs: Firestore) extends FirestoreClientDocRefFAttemptCollection[IO] {
-  override protected val database: Firestore = fs
-  override val collections                   = List("daruma")
-}
+case class DarumaTeamFirestoreRepo(fs: Firestore) extends FirestoreIORepository[Person](fs, CollectionHierarchy("team"))
