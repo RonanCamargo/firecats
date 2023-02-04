@@ -20,7 +20,7 @@ trait FirestoreClientDocRefFAttempt[F[_]] {
       F: Sync[F],
       encoder: FirestoreEncoder[A]
   ): F[Either[FirestoreError, A]] =
-    F.delay(docRef.set(encoder.encode(doc).document).get())
+    F.delay(docRef.set(encoder(doc).document).get())
       .|>(F.as(_, doc))
       .|>(attemptBlocking)
 
@@ -39,7 +39,7 @@ trait FirestoreClientDocRefFAttempt[F[_]] {
       F: Sync[F],
       encoder: FirestoreEncoder[A]
   ): F[Either[FirestoreError, A]] =
-    attemptBlocking(F.delay(docRef.create(encoder.encode(doc).document).get()).|>(F.as(_, doc)))
+    attemptBlocking(F.delay(docRef.create(encoder(doc).document).get()).|>(F.as(_, doc)))
 
   def update[A](docRef: DocumentReference)(f: A => A)(implicit
       F: Sync[F],
@@ -59,7 +59,7 @@ trait FirestoreClientDocRefFAttempt[F[_]] {
             val data: DocumentSnapshot = tx.get(docRef).get()
             val doc: A                 = decoder.decode(codec.FirestoreDocument(data.getData))
             val updated: B             = f(doc)
-            tx.update(docRef, encoder.encode(updated).document)
+            tx.update(docRef, encoder(updated).document)
             updated
           }
           .get()

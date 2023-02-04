@@ -12,7 +12,7 @@ case class FirestoreClient(firestore: Firestore) {
       encoder: FirestoreEncoder[A]
   ): F[Either[Throwable, A]] = {
     val docRef = firestore.collection(collection).document(docId)
-    F.blocking(docRef.set(encoder.encode(doc)).get())
+    F.blocking(docRef.set(encoder(doc)).get())
       .|>(F.as(_, doc))
       .|>(F.attempt)
   }
@@ -39,7 +39,7 @@ case class FirestoreClient(firestore: Firestore) {
       encoder: FirestoreEncoder[A]
   ): F[Either[Throwable, A]] = {
     val docRef = firestore.collection(collection).document(docId)
-    F.blocking(docRef.create(encoder.encode(doc)).get())
+    F.blocking(docRef.create(encoder(doc)).get())
       .|>(F.as(_, doc))
       .|>(F.attempt)
   }
@@ -55,7 +55,7 @@ case class FirestoreClient(firestore: Firestore) {
         .runTransaction { tx =>
           val doc        = decoder.decode(FirestoreDocument(tx.get(docRef).get().getData))
           val updated: A = f(doc)
-          tx.update(docRef, encoder.encode(updated).document)
+          tx.update(docRef, encoder(updated).document)
           updated
         }
         .get()
@@ -65,11 +65,11 @@ case class FirestoreClient(firestore: Firestore) {
   def txSet[A](docId: String, doc: A, collection: String)(implicit encoder: FirestoreEncoder[A]): WriteBatch = {
     val docRef        = firestore.collection(collection).document(docId)
     firestore.runTransaction { tx =>
-      tx.set(docRef, encoder.encode(doc))
+      tx.set(docRef, encoder(doc))
       doc
     }
     val b: WriteBatch = firestore.batch()
-    b.set(docRef, encoder.encode(doc))
+    b.set(docRef, encoder(doc))
   }
 
   def setNested2[F[_], A](
@@ -82,7 +82,7 @@ case class FirestoreClient(firestore: Firestore) {
       F: Async[F],
       encoder: FirestoreEncoder[A]
   ): F[Either[Throwable, A]] = {
-    val document = encoder.encode(doc)
+    val document = encoder(doc)
     val docRef   = firestore.collection(parentCollection).document(parentId).collection(collection).document(docId)
     F.blocking(docRef.set(document).get())
       .|>(F.as(_, doc))

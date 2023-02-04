@@ -14,7 +14,7 @@ case class FirestoreClientDocRef(private val firestore: Firestore) {
       F: Sync[F],
       encoder: FirestoreEncoder[A]
   ): F[Either[FirestoreError, A]] = {
-    F.blocking(docRef.set(encoder.encode(doc).document).get())
+    F.blocking(docRef.set(encoder(doc).document).get())
       .|>(F.as(_, doc))
       .|>(F.attempt)
       .leftMapIn(FirestoreError.unexpectedFirestoreError)
@@ -39,7 +39,7 @@ case class FirestoreClientDocRef(private val firestore: Firestore) {
       F: Sync[F],
       encoder: FirestoreEncoder[A]
   ): F[Either[FirestoreError, A]] = {
-    F.blocking(docRef.create(encoder.encode(doc).document).get())
+    F.blocking(docRef.create(encoder(doc).document).get())
       .|>(F.as(_, doc))
       .|>(F.attempt)
       .leftMapIn(FirestoreError.unexpectedFirestoreError)
@@ -49,7 +49,7 @@ case class FirestoreClientDocRef(private val firestore: Firestore) {
       F: Sync[F],
       encoder: FirestoreEncoder[A]
   ): F[Either[FirestoreError, A]] = {
-    attemptBlocking[F, A](F.delay(docRef.create(encoder.encode(doc).document).get()).|>(F.as(_, doc)))
+    attemptBlocking[F, A](F.delay(docRef.create(encoder(doc).document).get()).|>(F.as(_, doc)))
   }
 
   def update[F[_], A](docRef: DocumentReference)(f: A => A)(implicit
@@ -69,7 +69,7 @@ case class FirestoreClientDocRef(private val firestore: Firestore) {
           val data: DocumentSnapshot = tx.get(docRef).get()
           val doc: A                 = decoder.decode(codec.FirestoreDocument(data.getData))
           val updated: B             = f(doc)
-          tx.update(docRef, encoder.encode(updated).document)
+          tx.update(docRef, encoder(updated).document)
           updated
         }
         .get()

@@ -52,20 +52,20 @@ object Main extends App {
   val ronan                           = PersonDocument("123", "1", "Ronan", 28)
   val myTeamKey                       = DocumentKey("1", "123")
 
-  val teamRepo = TeamFirestoreRepo(firestore)
-  teamRepo.get(DocumentKey("1", "1")).runAndPrint
-  teamRepo.set(ronan).runAndPrint
-  teamRepo.getOption(myTeamKey).runAndPrint
-  teamRepo.create(ronan).runAndPrint
-
-  val capitalized = ronan.copy(name = ronan.name.toUpperCase)
-
-  teamRepo.unsafeUpdate(capitalized).runAndPrint
-  teamRepo.update(myTeamKey)(_.copy(age = 20)).runAndPrint
-  teamRepo.updateProjection(myTeamKey)(_ => Person("", 100)).runAndPrint
+//  val teamRepo = TeamFirestoreRepo(firestore)
+//  teamRepo.get(DocumentKey("1", "1")).runAndPrint
+//  teamRepo.set(ronan).runAndPrint
+//  teamRepo.getOption(myTeamKey).runAndPrint
+//  teamRepo.create(ronan).runAndPrint
+//
+//  val capitalized = ronan.copy(name = ronan.name.toUpperCase)
+//
+//  teamRepo.unsafeUpdate(capitalized).runAndPrint
+//  teamRepo.update(myTeamKey)(_.copy(age = 20)).runAndPrint
+//  teamRepo.updateProjection(myTeamKey)(_ => Person("", 100)).runAndPrint
 }
 
-case class TeamFirestoreRepo(fs: Firestore)
-    extends FirestoreIORepository[PersonDocument](fs, CollectionHierarchy("team", "nomades")) {
-  override def keyFromDoc: PersonDocument => DocumentKey = person => DocumentKey(person.id)
-}
+//case class TeamFirestoreRepo(fs: Firestore)
+//    extends FirestoreIORepository[PersonDocument](fs, CollectionHierarchy("team", "nomades")) {
+//  override def keyFromDoc: PersonDocument => DocumentKey = person => DocumentKey(person.id)
+//}

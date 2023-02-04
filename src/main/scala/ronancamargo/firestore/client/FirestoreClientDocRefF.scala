@@ -15,7 +15,7 @@ trait FirestoreClientDocRefF[F[_]] {
       F: Sync[F],
       encoder: FirestoreEncoder[A]
   ): F[Either[FirestoreError, A]] = {
-    F.blocking(docRef.set(encoder.encode(doc).document).get())
+    F.blocking(docRef.set(encoder(doc).document).get())
       .|>(F.as(_, doc))
       .|>(F.attempt)
       .leftMapIn(FirestoreError.unexpectedFirestoreError)
@@ -40,7 +40,7 @@ trait FirestoreClientDocRefF[F[_]] {
       F: Sync[F],
       encoder: FirestoreEncoder[A]
   ): F[Either[FirestoreError, A]] = {
-    F.blocking(docRef.create(encoder.encode(doc).document).get())
+    F.blocking(docRef.create(encoder(doc).document).get())
       .|>(F.as(_, doc))
       .|>(F.attempt)
       .leftMapIn(FirestoreError.unexpectedFirestoreError)
@@ -50,7 +50,7 @@ trait FirestoreClientDocRefF[F[_]] {
       F: Sync[F],
       encoder: FirestoreEncoder[A]
   ): F[Either[FirestoreError, A]] = {
-    attemptBlock[A](F.delay(docRef.create(encoder.encode(doc).document).get()).|>(F.as(_, doc)))
+    attemptBlock[A](F.delay(docRef.create(encoder(doc).document).get()).|>(F.as(_, doc)))
   }
 
   def update[A](docRef: DocumentReference)(f: A => A)(implicit
@@ -70,7 +70,7 @@ trait FirestoreClientDocRefF[F[_]] {
           val data: DocumentSnapshot = tx.get(docRef).get()
           val doc: A                 = decoder.decode(codec.FirestoreDocument(data.getData))
           val updated: B             = f(doc)
-          tx.update(docRef, encoder.encode(updated).document)
+          tx.update(docRef, encoder(updated).document)
           updated
         }
         .get()

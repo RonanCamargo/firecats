@@ -1,6 +1,6 @@
 package ronancamargo.firestore.v3.codec
 
-import ronancamargo.firestore.v3.codec.semiauto.polyEncoder
+import ronancamargo.firestore.v3.codec.semiauto._
 import ronancamargo.firestore.v3.data.FirestoreDocument
 import shapeless.Generic.Aux
 import shapeless.ops.hlist
