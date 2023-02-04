@@ -6,7 +6,7 @@ case class Person(name: String, age: Int)
 
 object Person {
   implicit val personEncoder: FirestoreEncoder[Person] = new FirestoreEncoder[Person] {
-    override def encode(entity: Person): FirestoreDocument =
+    override def apply(entity: Person): FirestoreDocument =
       FirestoreDocument(
         Map("name" -> entity.name.asInstanceOf[AnyRef], "age" -> entity.age.asInstanceOf[AnyRef])
       )
