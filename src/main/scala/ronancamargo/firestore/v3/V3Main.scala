@@ -39,7 +39,7 @@ object V3Main extends App with MainUtil {
 //  update.runTimedAndPrint
 //  updateProjection.runTimedAndPrint
 //  getStream.compile.toList.attempt.runTimedAndPrint
-//  all.runTimedAndPrint
+  all.runTimedAndPrint
 //  greaterThan30.runTimedAndPrint
 //  nameIn.runTimedAndPrint
 //  orderByAge.runTimedAndPrint

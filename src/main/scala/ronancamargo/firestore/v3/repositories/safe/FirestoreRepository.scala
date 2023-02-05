@@ -2,7 +2,7 @@ package ronancamargo.firestore.v3.repositories.safe
 
 import cats.Show
 import cats.effect.Sync
-import cats.free.Coyoneda
+import cats.free.Yoneda
 import cats.implicits._
 import com.google.api.core.ApiFuture
 import com.google.api.gax.rpc.AlreadyExistsException
@@ -74,15 +74,11 @@ abstract class FirestoreRepository[F[_] : Sync, A <: Product, D <: HList](
   }
 
   def getAll(keys: D)(implicit firestoreDecoder: FirestoreDecoder[A]): F[Either[FirestoreError, List[A]]] =
-    Coyoneda
-      .lift(Sync[F].blocking(parentCollectionReference(collectionHierarchy, keys, database).get().get()))
+    Yoneda(Sync[F].blocking(parentCollectionReference(collectionHierarchy, keys, database).get().awaitFirestore))
       .map(_.getDocuments.asScala.toList)
-      .map(_.map(_.getData))
-      .map(_.map(FirestoreDocument(_)))
-      .map(_.map(firestoreDecoder.decode))
-//      .mapNested2(_.getData)
-//      .mapNested2(FirestoreDocument(_))
-//      .mapNested2(firestoreDecoder.decode)
+      .mapNested2(_.getData)
+      .mapNested2(FirestoreDocument(_))
+      .mapNested2(firestoreDecoder.decode)
       .run
       .attempt
       .leftMapIn(errorHandler)
@@ -90,14 +86,11 @@ abstract class FirestoreRepository[F[_] : Sync, A <: Product, D <: HList](
   def getByQuery(keys: D)(
       query: CollectionReference => Query
   )(implicit firestoreDecoder: FirestoreDecoder[A]): F[Either[FirestoreError, List[A]]] =
-    Coyoneda
-      .lift(
-        Sync[F].blocking(query(parentCollectionReference(collectionHierarchy, keys, database)).get().awaitFirestore)
-      )
+    Yoneda(Sync[F].blocking(query(parentCollectionReference(collectionHierarchy, keys, database)).get().awaitFirestore))
       .map(_.getDocuments.asScala.toList)
-      .map(_.map(_.getData))
-      .map(_.map(FirestoreDocument(_)))
-      .map(_.map(firestoreDecoder.decode))
+      .mapNested2(_.getData)
+      .mapNested2(FirestoreDocument(_))
+      .mapNested2(firestoreDecoder.decode)
       .run
       .attempt
       .leftMapIn(errorHandler)
