@@ -19,7 +19,7 @@ addCompilerPlugin("org.typelevel" % "kind-projector" % kindProjectorVersion cros
 libraryDependencies ++= dependencies
 
 lazy val dependencies =
-  catsDependencies ++ monocleDependencies ++ circeDependencies ++ testDependencies ++ fs2Dependencies ++ shapelessDependencies ++ firestoreDependencies
+  catsDependencies ++ monocleDependencies ++ circeDependencies ++ testDependencies ++ fs2Dependencies ++ shapelessDependencies ++ firestoreDependencies ++ magnoliaDependencies
 
 lazy val catsDependencies = Seq(
   "org.typelevel" %% "cats-core"   % catsVersion,
@@ -62,5 +62,5 @@ lazy val firestoreDependencies = Seq(
 )
 
 lazy val magnoliaDependencies = Seq(
-  libraryDependencies += "com.softwaremill.magnolia1_2" %% "magnolia" % magnoliaVersion
+  "com.softwaremill.magnolia1_2" %% "magnolia" % magnoliaVersion
 )
