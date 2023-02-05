@@ -2,17 +2,18 @@ scalaVersion := "2.13.8"
 organization := "ronancam"
 name         := "firecats"
 
-val circeVersion         = "0.14.1"
-val catsEffectVersion    = "3.3.5"
-val catsVersion          = "2.7.0"
-val catsMtlVersion       = "1.2.1"
-val mouseVersion         = "1.0.9"
-val scalaTestVersion     = "3.2.10"
-val mockitoScalaVersion  = "1.17.0"
+val circeVersion         = "0.14.3"
+val catsEffectVersion    = "3.4.6"
+val catsVersion          = "2.9.0"
+val catsMtlVersion       = "1.3.0"
+val mouseVersion         = "1.2.1"
+val scalaTestVersion     = "3.2.15"
+val mockitoScalaVersion  = "1.17.12"
 val monocleVersion       = "3.1.0"
-val fs2Version           = "3.2.4"
-val shapelessVersion     = "2.3.8"
+val fs2Version           = "3.5.0"
+val shapelessVersion     = "2.3.10"
 val kindProjectorVersion = "0.13.2"
+val magnoliaVersion      = "1.1.3"
 
 addCompilerPlugin("org.typelevel" % "kind-projector" % kindProjectorVersion cross CrossVersion.full)
 libraryDependencies ++= dependencies
@@ -56,6 +57,10 @@ lazy val shapelessDependencies = Seq(
 )
 
 lazy val firestoreDependencies = Seq(
-  "com.google.firebase" % "firebase-admin"         % "8.1.0",
-  "com.google.cloud"    % "google-cloud-firestore" % "3.0.14"
+  "com.google.firebase" % "firebase-admin"         % "9.1.1",
+  "com.google.cloud"    % "google-cloud-firestore" % "3.7.9"
+)
+
+lazy val magnoliaDependencies = Seq(
+  libraryDependencies += "com.softwaremill.magnolia1_2" %% "magnolia" % magnoliaVersion
 )

@@ -4,7 +4,7 @@ import ronancamargo.firestore.v3.data.FirestoreDocument
 
 import scala.jdk.CollectionConverters._
 
-trait FirestoreDecoder[A] {
+  trait FirestoreDecoder[A] {
   def decode(document: FirestoreDocument): A
 }
 

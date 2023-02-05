@@ -3,7 +3,7 @@ import com.google.auth.oauth2.GoogleCredentials
 import com.google.cloud.firestore.{DocumentReference, Firestore}
 import com.google.firebase.cloud.FirestoreClient
 import com.google.firebase.{FirebaseApp, FirebaseOptions}
-import ronancamargo.firestore.client.FirestoreIORepository
+// import ronancamargo.firestore.client.FirestoreIORepository
 import ronancamargo.firestore.data.{CollectionHierarchy, DocumentKey}
 import ronancamargo.firestore.errors.FirestoreError
 import ronancamargo.firestore.syntax.runners._
@@ -14,9 +14,9 @@ import scala.util.chaining._
 
 object Main extends App {
 
-  val serviceAccount = new FileInputStream("src/main/resources/firebase-key.json")
-  val options        = new FirebaseOptions.Builder().setCredentials(GoogleCredentials.fromStream(serviceAccount)).build
-  val app: FirebaseApp              = FirebaseApp.initializeApp(options)
+  val serviceAccount   = new FileInputStream("src/main/resources/firebase-key.json")
+  val options          = FirebaseOptions.builder().setCredentials(GoogleCredentials.fromStream(serviceAccount)).build
+  val app: FirebaseApp = FirebaseApp.initializeApp(options)
   implicit val firestore: Firestore = FirestoreClient.getFirestore(app)
   implicit class Printer[A](printable: IO[Either[FirestoreError, A]]) {
     def runAndPrint: Either[FirestoreError, A] = printable.runSync.tap(println)

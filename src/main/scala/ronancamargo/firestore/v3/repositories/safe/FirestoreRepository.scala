@@ -2,22 +2,26 @@ package ronancamargo.firestore.v3.repositories.safe
 
 import cats.Show
 import cats.effect.Sync
+import cats.free.Coyoneda
 import cats.implicits._
 import com.google.api.core.ApiFuture
 import com.google.api.gax.rpc.AlreadyExistsException
-import com.google.cloud.firestore.{DocumentReference, Firestore}
+import com.google.cloud.firestore._
+import fs2.{Chunk, Pull}
 import mouse.all._
 import ronancamargo.firestore.v3.codec.{FirestoreDecoder, FirestoreEncoder}
 import ronancamargo.firestore.v3.data.FirestoreDocument
 import ronancamargo.firestore.v3.data.safe.DocumentDepthCoproduct.DocumentDepthCoproduct
 import ronancamargo.firestore.v3.errors.FirestoreError
-import shapeless.ops.coproduct
-import shapeless.ops.hlist.{Intersection, ToTraversable}
-import shapeless.{HList, LabelledGeneric}
 import ronancamargo.firestore.v3.repositories.safe.Ops._
+import ronancamargo.firestore.v3.shapeless.Projection
+import shapeless.HList
+import shapeless.ops.coproduct
+import shapeless.ops.hlist.ToTraversable
 
 import scala.annotation.implicitNotFound
 import scala.concurrent.ExecutionException
+import scala.jdk.CollectionConverters._
 
 abstract class FirestoreRepository[F[_] : Sync, A <: Product, D <: HList](
     database: Firestore
@@ -32,6 +36,9 @@ abstract class FirestoreRepository[F[_] : Sync, A <: Product, D <: HList](
 
   private implicit val showD: Show[D] = (t: D) => t.toList.mkString(" -> ")
 
+  protected def parentCollectionReference(collections: D, keys: D, firestore: Firestore): CollectionReference =
+    documentReference(collections, keys, firestore).getParent
+
   protected def documentReference(
       collections: D,
       keys: D,
@@ -43,6 +50,57 @@ abstract class FirestoreRepository[F[_] : Sync, A <: Product, D <: HList](
         (collectionTail zip keysTail)
           .foldLeft(seedDocRef) { case (docRef, (col, key)) => docRef.collection(col).document(key) }
     }
+
+  def getAllAsStream(keys: D)(implicit firestoreDecoder: FirestoreDecoder[A]): fs2.Stream[F, A] = {
+    val pageSize                                              = 500
+    def go(offset: Int): Pull[F, QueryDocumentSnapshot, Unit] =
+      Pull
+        .eval(
+          Sync[F].blocking(
+            parentCollectionReference(collectionHierarchy, keys, database)
+              .offset(offset)
+              .limit(pageSize)
+              .get()
+              .awaitFirestore
+          )
+        )
+        .map(_.getDocuments.asScala.iterator)
+        .flatMap {
+          case iterator if iterator.nonEmpty => Pull.output(Chunk.iterator(iterator)) >> go(offset + pageSize)
+          case _                             => Pull.done
+        }
+
+    go(0).stream.map(_.getData).map(FirestoreDocument(_)).map(firestoreDecoder.decode)
+  }
+
+  def getAll(keys: D)(implicit firestoreDecoder: FirestoreDecoder[A]): F[Either[FirestoreError, List[A]]] =
+    Coyoneda
+      .lift(Sync[F].blocking(parentCollectionReference(collectionHierarchy, keys, database).get().get()))
+      .map(_.getDocuments.asScala.toList)
+      .map(_.map(_.getData))
+      .map(_.map(FirestoreDocument(_)))
+      .map(_.map(firestoreDecoder.decode))
+//      .mapNested2(_.getData)
+//      .mapNested2(FirestoreDocument(_))
+//      .mapNested2(firestoreDecoder.decode)
+      .run
+      .attempt
+      .leftMapIn(errorHandler)
+
+  def getByQuery(keys: D)(
+      query: CollectionReference => Query
+  )(implicit firestoreDecoder: FirestoreDecoder[A]): F[Either[FirestoreError, List[A]]] =
+    Coyoneda
+      .lift(
+        Sync[F].blocking(query(parentCollectionReference(collectionHierarchy, keys, database)).get().awaitFirestore)
+      )
+      .map(_.getDocuments.asScala.toList)
+      .map(_.map(_.getData))
+      .map(_.map(FirestoreDocument(_)))
+      .map(_.map(firestoreDecoder.decode))
+      .run
+      .attempt
+      .leftMapIn(errorHandler)
 
   def set(doc: A)(implicit
       encoder: FirestoreEncoder[A]
@@ -105,10 +163,7 @@ abstract class FirestoreRepository[F[_] : Sync, A <: Product, D <: HList](
   )(f: A => B)(implicit
       decoder: FirestoreDecoder[A],
       encoder: FirestoreEncoder[B],
-      genA: LabelledGeneric.Aux[A, LA],
-      genB: LabelledGeneric.Aux[B, LB],
-      @implicitNotFound("${B} must be a type projection of ${A}")
-      intersection: Intersection.Aux[LA, LB, LB]
+      projectable: Projection[A, B]
   ): F[Either[FirestoreError, B]] =
     Sync[F]
       .blocking {
@@ -131,9 +186,7 @@ abstract class FirestoreRepository[F[_] : Sync, A <: Product, D <: HList](
   )(implicit
       decoder: FirestoreDecoder[A],
       encoder: FirestoreEncoder[A],
-      genA: LabelledGeneric.Aux[A, LA],
-      @implicitNotFound("${B} must be a type projection of ${A}")
-      intersection: Intersection.Aux[LA, LA, LA]
+      projection: Projection[A, A]
   ): F[Either[FirestoreError, A]] =
     updateProjection(key)(f)
 
@@ -147,6 +200,17 @@ abstract class FirestoreRepository[F[_] : Sync, A <: Product, D <: HList](
 private object Ops {
   implicit final class ApiFutureOps[OP](private val future: ApiFuture[OP]) extends AnyVal {
     def awaitFirestore: OP = future.get()
+
+//    def awaitFirestoreAsync[F[_] : Async]: F[OP] = Async[F].async_ { (cb: Either[Throwable, OP] => Unit) =>
+//      ApiFutures.addCallback(
+//        future,
+//        new ApiFutureCallback[OP] {
+//          override def onFailure(t: Throwable): Unit = cb(Left(t))
+//
+//          override def onSuccess(result: OP): Unit = cb(Right(result))
+//        }
+//      )
+//    }
   }
 }
 
