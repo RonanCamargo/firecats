@@ -1,8 +1,8 @@
 package ronancamargo.firestore.v3.syntax
 
-import ronancamargo.firestore.{JavaList, JavaMap}
 import ronancamargo.firestore.v3.codec._
 import ronancamargo.firestore.v3.data.FirestoreDocument
+import ronancamargo.firestore.{JavaList, JavaMap}
 
 import scala.jdk.CollectionConverters._
 
@@ -32,5 +32,8 @@ object codec {
     def encodeDouble(implicit ev: A =:= Double): AnyRef             = value.asInstanceOf[AnyRef]
     def encodeObject(implicit encoder: FirestoreEncoder[A]): AnyRef =
       encoder(value).document.asInstanceOf[AnyRef]
+
+    def encodeField[B](implicit fieldEncoder: FirestoreFieldEncoder[B], ev: A =:= B): AnyRef =
+      fieldEncoder.encodeField(ev(value))
   }
 }
