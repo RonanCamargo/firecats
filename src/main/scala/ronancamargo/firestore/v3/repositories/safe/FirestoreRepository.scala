@@ -51,8 +51,7 @@ abstract class FirestoreRepository[F[_] : Sync, A <: Product, D <: HList](
           .foldLeft(seedDocRef) { case (docRef, (col, key)) => docRef.collection(col).document(key) }
     }
 
-  def getAllAsStream(keys: D)(implicit firestoreDecoder: FirestoreDecoder[A]): fs2.Stream[F, A] = {
-    val pageSize                                              = 500
+  def getAllAsStream(keys: D, pageSize: Int)(implicit firestoreDecoder: FirestoreDecoder[A]): fs2.Stream[F, A] = {
     def go(offset: Int): Pull[F, QueryDocumentSnapshot, Unit] =
       Pull
         .eval(
@@ -106,9 +105,7 @@ abstract class FirestoreRepository[F[_] : Sync, A <: Product, D <: HList](
       .attempt
       .leftMapIn(errorHandler)
 
-  def get(key: D)(implicit
-      decoder: FirestoreDecoder[A]
-  ): F[Either[FirestoreError, A]] =
+  def get(key: D)(implicit decoder: FirestoreDecoder[A]): F[Either[FirestoreError, A]] =
     getOption(key).flatMapIn(_.toRight(FirestoreError.documentNotFound(key, collectionHierarchy)))
 
   def getOption(

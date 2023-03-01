@@ -1,6 +1,7 @@
 scalaVersion := "2.13.8"
 organization := "ronancam"
 name         := "firecats"
+version      := "0.0.1-SNAPSHOT"
 
 val circeVersion         = "0.14.3"
 val catsEffectVersion    = "3.4.6"

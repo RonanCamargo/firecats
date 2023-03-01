@@ -1,5 +1,6 @@
 package ronancamargo.firestore.v3.codec.instances
 
+import cats.Contravariant
 import ronancamargo.firestore.v3.codec.FirestoreFieldEncoder
 import ronancamargo.firestore.v3.codec.FirestoreFieldEncoder.instance
 
@@ -25,5 +26,10 @@ private[codec] trait FirestoreFieldEncoderInstances {
 
   implicit def listFieldEncoder[A](implicit fieldEncoder: FirestoreFieldEncoder[A]): FirestoreFieldEncoder[List[A]] =
     seqFieldEncoder[A].contramap[List[A]](_.toSeq)
+
+  implicit val fieldEncoderContravariantFunctor: Contravariant[FirestoreFieldEncoder] =
+    new Contravariant[FirestoreFieldEncoder] {
+      override def contramap[A, B](fa: FirestoreFieldEncoder[A])(f: B => A): FirestoreFieldEncoder[B] = fa.contramap(f)
+    }
 
 }

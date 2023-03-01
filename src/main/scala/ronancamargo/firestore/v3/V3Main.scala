@@ -4,7 +4,7 @@ import com.google.cloud.firestore.Firestore
 import com.google.cloud.firestore.Query.Direction
 import ronancamargo.MainUtil
 import ronancamargo.firestore.data.Reference._
-import ronancamargo.firestore.v3.codec.{FirestoreDecoder, FirestoreEncoder}
+import ronancamargo.firestore.v3.codec.{FirestoreDecoder, FirestoreEncoder, FirestoreFieldEncoder}
 import ronancamargo.firestore.v3.data.safe.DocumentDepthCoproduct.DocumentDepth1
 import ronancamargo.firestore.v3.repositories.safe.FirestoreIORepository
 import ronancamargo.firestore.v3.syntax.codec._
@@ -17,6 +17,7 @@ object V3Main extends App with MainUtil {
 
 //  (1 to 1000).map(n => repo.set(Person(n.toString, 100))).foreach(_.runTimedAndPrint)
 
+  println(implicitly[FirestoreFieldEncoder[Person]].encodeField(Person("Ronan", 29)))
   val set              = repo.set(Person("Messi", 35, List("Thiago", "Mateo", "Ciro")))
   val set2             = repo.set(Person("El Diego", 60))
   val get              = repo.get("Messi" @> DocKey)
@@ -31,7 +32,7 @@ object V3Main extends App with MainUtil {
       .offset(10)
       .limit(2)
   )
-  val getStream        = repo.getAllAsStream(ManyDocs)
+//  val getStream        = repo.getAllAsStream(ManyDocs)
 
   set.runTimedAndPrint
   set2.runTimedAndPrint
@@ -48,6 +49,7 @@ object V3Main extends App with MainUtil {
 case class Person(name: String, age: Int, children: List[String] = Nil)
 
 object Person {
+
   implicit val personEncoder: FirestoreEncoder[Person] =
     FirestoreEncoder.instance[Person](p =>
       Map(
@@ -71,5 +73,5 @@ case class PersonRepository(firestore: Firestore) extends FirestoreIORepository[
 case class Age(age: Int)
 object Age {
   implicit val ageEncoder: FirestoreEncoder[Age] =
-    FirestoreEncoder.instance[Age](age => Map("age" -> age.age.encodeInt))
+    FirestoreEncoder.instance[Age](age => Map("age" -> age.age.encodeField[Int]))
 }
