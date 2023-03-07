@@ -1,5 +1,5 @@
-scalaVersion := "2.13.8"
-organization := "ronancam"
+scalaVersion := "2.13.10"
+organization := "ronancamargo"
 name         := "firecats"
 version      := "0.0.1-SNAPSHOT"
 
