@@ -32,6 +32,7 @@ object V3Main extends App with MainUtil {
       .offset(10)
       .limit(2)
   )
+
 //  val getStream        = repo.getAllAsStream(ManyDocs)
 
   set.runTimedAndPrint
