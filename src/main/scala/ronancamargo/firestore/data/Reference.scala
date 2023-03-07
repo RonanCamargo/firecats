@@ -1,5 +1,4 @@
 package ronancamargo.firestore.data
-
 import shapeless.{::, HList, HNil}
 
 object Reference {

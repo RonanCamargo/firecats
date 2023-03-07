@@ -2,7 +2,7 @@ package ronancamargo
 
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.must.Matchers
-import ronancamargo.firestore.v3.codec.FirestoreFieldDecoder
+import ronancamargo.firestore.codec.FirestoreFieldDecoder
 
 import scala.jdk.CollectionConverters._
 
