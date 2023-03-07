@@ -8,7 +8,7 @@ import mouse.any._
 
 import java.io.InputStream
 
-object CommonsFirestoreConfig {
+object FirecatsConfig {
   def createFirestore(configFileStream: InputStream): Firestore =
     FirebaseOptions
       .builder()
